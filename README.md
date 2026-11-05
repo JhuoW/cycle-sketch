@@ -1,11 +1,8 @@
 # CycleSketch — certified what-if effective-resistance queries under edge failures
 
-Research artifact accompanying the ICDE submission draft in `paper/` (`paper/main.pdf`).
-It contains the full implementation, every experiment script, raw JSON results, logs, and the
-scripts that turn results into the paper's tables and figures.
-
-The Git repository contains only the code (`src/`, `experiments/`, `environment.yml`). The paper source
-(`paper/`), raw results and logs (`results/`) and reports (`reports/`) are kept outside version control.
+Implementation of the CycleSketch index, the baselines, and every experiment, timing and analysis script.
+Datasets (`data/`) and experiment outputs (`results/`) are not part of the repository: the scripts read the
+downloaded datasets from `data/raw/` and write raw JSON results and logs to `results/`.
 
 ## Layout
 
@@ -13,25 +10,23 @@ The Git repository contains only the code (`src/`, `experiments/`, `environment.
 |---|---|
 | `src/graphio.py` | dataset loaders (SNAP via GraphChallenge mirror, MATPOWER), LCC preprocessing |
 | `src/core.py` | graph, spanning tree + O(n) tree kernels (Numba), solvers (CHOLMOD / PyAMG / Jacobi-PCG), **CycleSketch** index (lift, spectral certificate ξ), GF(2) topology oracle, what-if queries |
-| `src/baselines.py` | CutSketch, RawCycle, Woodbury (online), Resolve, FixedPoly (original a-priori construction), exact ground truth |
-| `experiments/verify_original_claims.py` | independent numerical verification of every identity of the original exposition |
+| `src/baselines.py` | CutSketch, RawCycle, Woodbury (online), Resolve, FixedPoly (a-priori construction), exact ground truth |
+| `experiments/verify_original_claims.py` | numerical verification of the algebraic identities the method relies on |
 | `experiments/test_core.py` | unit tests against dense linear algebra |
-| `experiments/exp_accuracy.py` | Exp-1 accuracy vs failure margin |
-| `experiments/exp_partial.py` | Exp-2 partial failures |
-| `experiments/exp_certificate.py` | Exp-3 solver-agnostic error bound |
-| `experiments/exp_pivot.py` | Exp-4 calibration of the exact confidence intervals |
-| `experiments/exp_coupling.py` | Exp-5 sketch-corrected pair flow |
-| `experiments/exp_efficiency.py` | Exp-6/7 efficiency and scalability (single-threaded) |
-| `experiments/exp_topology.py` | Exp-8 XOR connectivity test vs BFS |
-| `experiments/exp_screening.py` | Exp-9 certified N-1 / N-2 screening |
-| `experiments/exact_cdiag.py` | exact C_ee of every edge with parallel workers (ground truth for verifying RoadPA screening only) |
+| `experiments/exp_accuracy.py` | accuracy vs failure margin |
+| `experiments/exp_partial.py` | partial failures (edge weakening) |
+| `experiments/exp_certificate.py` | solver-agnostic error bound with inexact solvers |
+| `experiments/exp_pivot.py` | calibration of the exact confidence intervals |
+| `experiments/exp_coupling.py` | sketch-corrected pair flow from inexact potentials |
+| `experiments/exp_efficiency.py` | efficiency and scalability (single-threaded) |
+| `experiments/exp_topology.py` | XOR connectivity test vs BFS |
+| `experiments/exp_screening.py` | certified N-1 / N-2 screening |
+| `experiments/exact_cdiag.py` | exact cycle mass C_ee of every edge with parallel workers (ground truth only) |
 | `experiments/factor_sizes.py` | CHOLMOD factor sizes in the timing environment |
-| `experiments/run_timing_all.sh`, `run_timing_amazon_cholmod.sh`, `run_timing_idlecheck.sh` | all timing runs (sequential, single-threaded, pinned to one dedicated core) |
+| `experiments/run_timing_all.sh`, `run_timing_amazon_cholmod.sh`, `run_timing_amazon_jacobi.sh`, `run_timing_idlecheck.sh` | timing runs (sequential, single-threaded, pinned to one dedicated core) |
 | `experiments/run_accuracy_rest.sh` | accuracy runs for Gowalla and the road networks, plus a reproducibility re-run of PEG9241 |
-| `experiments/run_timing_part*.sh`, `run_screening.sh` | earlier timing scripts used on the 4-core VM (superseded) |
-| `experiments/analyze.py` | tables (`paper/tables/`) and figures (`paper/figures/`) |
-| `results/*.json`, `results/logs/` | raw results and logs (never edited by hand) |
-| `reports/` | critical assessment, literature/novelty analysis, readiness report |
+| `experiments/run_timing_part*.sh`, `run_screening.sh` | earlier scripts used on a 4-core VM (superseded) |
+| `experiments/analyze.py` | aggregates the result files into LaTeX tables and PDF figures (output directories are set at the top of the script) |
 
 ## Reproduce
 
@@ -45,7 +40,6 @@ python3 experiments/exp_accuracy.py PEG9241 --d 64 256 --nq 100 --fixedpoly
 PY=$(which python) bash experiments/run_accuracy_rest.sh     # accuracy on Gowalla and road graphs
 PY=$(which python) bash experiments/run_timing_all.sh        # idle core; single-threaded, pinned (taskset)
 python3 experiments/analyze.py
-cd paper && latexmk -pdf main.tex
 ```
 
 Raw data: SNAP graphs from `https://graphchallenge.s3.amazonaws.com/snap/<name>/<name>_adj.tsv`
@@ -53,42 +47,15 @@ Raw data: SNAP graphs from `https://graphchallenge.s3.amazonaws.com/snap/<name>/
 and MATPOWER cases from `https://raw.githubusercontent.com/MATPOWER/matpower/master/data/<case>.m`
 (case2869pegase, case9241pegase, case_ACTIVSg25k, case_ACTIVSg70k), saved as `data/raw/<name>.tsv|.m`.
 
-## Status of results
+## Notes
 
-Every experiment in the paper has been run, and the paper contains no placeholders: the `\ph{}` macro
-has been removed from `paper/main.tex`, so a leftover placeholder would stop compilation. Three kinds of
-values are extrapolated rather than measured, all from measured per-solve or per-iteration costs: the
-dagger-marked entries of Table VI (LODF for all edges, FixedPoly build) and the RoadPA exhaustive time in
-Exp-9 ("would take about 10 h"). All three are worded as extrapolations in the paper.
-
-## Notes on fidelity
-
-* All numbers in the paper come from the JSON files in `results/`. Tables and Fig. 2 are generated by
-  `experiments/analyze.py`, and numbers quoted in the text are copied from the same files.
-* **Timings.** Every running time in the paper was measured on an AMD Ryzen Threadripper PRO 7975WX
-  workstation (754 GB RAM, Ubuntu 24.04, Python 3.12, environment in `environment.yml`). Each timing run
-  is single-threaded (OPENBLAS/OMP/NUMBA/MKL threads = 1), pinned with `taskset -c 2`, and executed while
-  no other experiment runs (`run_timing_all.sh`, `run_timing_idlecheck.sh`,
-  `run_timing_amazon_cholmod.sh`, `run_timing_amazon_jacobi.sh`).
-* **Interference check.** A first pass of the d=256 efficiency runs overlapped with accuracy jobs on other
-  cores and was 2–110% slower because of shared memory bandwidth. All 11 CHOLMOD runs and the Amazon Jacobi
-  run were repeated on a quiet machine, and only the quiet numbers are used. The overlapped files are kept in
-  `results/repro/overlapped/` and `results/logs/overlapped/` (and `results/logs/eff_Amazon_jacobi_partial.log`).
-  The original VM timing files are kept in `results/vm_timing_backup/` and are not used.
-* **Accuracy and calibration.** Errors and coverage do not depend on the machine. Exp-1 on the power grids,
-  HepPh, Enron and Brightkite, and Exp-2 to Exp-5 (except RoadPA in Exp-5) were run earlier on a 4-core
-  Xeon VM (Python 3.13). Exp-1 on Gowalla and the road networks, Exp-5 on RoadPA and all of Exp-8/Exp-9 ran on
-  the workstation. A re-run of Exp-1 on PEG9241 on the workstation (`results/repro/accuracy_PEG9241.json`)
-  uses a different draw of queries, because the pilot-sketch ranking changed with the library versions, and
-  agrees with the VM run within 0.7 points (CycleSketch medians) and 2 points (CutSketch failure rate).
-* **Screening ground truth on RoadPA.** One exact solve per edge would take about 10 h, so the exact cycle
-  masses C_ee were computed offline with parallel CHOLMOD workers (`experiments/exact_cdiag.py`, cache
-  `results/cache/cdiag_RoadPA.npy`). Their sum equals m-n+1 = 453,953 to machine precision. The
-  exhaustive running time for RoadPA in the paper is therefore an extrapolation from the measured time per solve.
-* **Road networks.** Online baselines (Woodbury, Resolve) were not run in Exp-1 on the road graphs and FixedPoly
-  only on the power grids, which the Fig. 2 caption states. The road workloads contain no failure with
-  mu_F < 1e-2 (smallest margin 0.023).
-* **Amazon with Jacobi-PCG** (no factorization): 82 min build, ξ = 2.8e-7, about 480 CG iterations per probe
-  (`results/efficiency_Amazon_d256_jacobi.json`, run with `--skip_baselines`, so the baselines in Table VI
-  come from the CHOLMOD run).
-* `paper/` includes `IEEEtran.cls` and `IEEEtran.bst` (v1.8b, CTAN) because the local TeX Live lacks them.
+* **Timing protocol.** Run timings single-threaded (OPENBLAS/OMP/NUMBA/MKL threads = 1), pinned to one core
+  (`taskset -c 2`), and with no other experiment running. Concurrent jobs on other cores slowed the efficiency
+  runs by 2–110% through shared memory bandwidth. The `run_timing_*.sh` scripts follow this protocol.
+* **Exact cycle masses.** On large graphs, one exact solve per edge takes hours, so `experiments/exact_cdiag.py`
+  computes the exact C_ee = 1 − w_e R_e with parallel CHOLMOD workers and caches them in
+  `results/cache/cdiag_<dataset>.npy`. Their sum equals m − n + 1 to machine precision.
+  Set the BLAS/OMP thread counts to 1 so that the workers do not oversubscribe the cores.
+* **Amazon without factorization.** `exp_efficiency.py Amazon --d 256 --solver jacobi --skip_baselines`
+  builds the index with Jacobi-preconditioned CG (about 480 iterations per probe, see
+  `run_timing_amazon_jacobi.sh`).
