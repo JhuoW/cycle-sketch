@@ -1,0 +1,27 @@
+# Raw datasets (downloaded, see README) and regenerable caches
+data/
+results/cache/
+
+# Only the code is version-controlled: paper source, raw results/logs and
+# internal review documents are kept out of the repository
+paper/
+results/
+reports/
+figures/
+
+# Archives
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+
+# LaTeX build intermediates (results/logs/*.log are kept)
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.blg
+paper/*.bbl
+paper/*.synctex.gz
